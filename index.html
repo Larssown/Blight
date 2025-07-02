@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BLIGHT!</title>
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0; padding: 0; display: flex; justify-content: center; align-items: center;
+            height: 100vh; background-color: #0d0d0d; color: #a3a3a3;
+            font-family: 'Special Elite', monospace; overflow: hidden;
+        }
+        #game-container {
+            position: relative; display: flex; flex-direction: column; align-items: center;
+            text-align: center; border: 2px solid #333; background-color: #1a1a1a;
+            box-shadow: 0 0 30px rgba(179, 0, 0, 0.4); padding: 20px; border-radius: 5px;
+        }
+        h1 {
+            margin-top: 0; margin-bottom: 15px; font-family: 'Creepster', cursive;
+            color: #8B0000; font-size: 3.5em; letter-spacing: 4px; text-shadow: 2px 2px #000;
+        }
+        canvas {
+            background-color: #1a1a1a;
+            border: 2px solid #2f1e1e;
+            border-radius: 4px;
+            box-shadow: inset 0 0 15px #000;
+        }
+        #ui-grid {
+            margin-top: 15px; font-size: 1.2em; display: grid;
+            grid-template-columns: 1fr auto 1fr; width: 100%; padding: 0 10px; color: #7a7a7a;
+            align-items: center;
+        }
+        #left-ui { display: flex; flex-direction: column; align-items: flex-start; }
+        #center-ui { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+        #right-ui { display: flex; flex-direction: column; align-items: flex-end; }
+        #health-display { color: #b30000; text-shadow: 1px 1px #000; }
+        #souls-display { color: #a0b3d1; text-shadow: 1px 1px #000; }
+        #level-display { color: #6c7a89; text-shadow: 1px 1px #000; }
+        #score-display { color: #9c8a4d; text-shadow: 1px 1px #000; }
+        .cooldown-ui {
+            width: 50px; height: 50px; border: 2px solid #555; border-radius: 5px;
+            background-color: #222; position: relative;
+        }
+        .cooldown-bar {
+            position: absolute; top:0; left:0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            transition: height 0.1s linear;
+        }
+        .cooldown-icon {
+            font-size: 30px; line-height: 50px; color: #fff;
+        }
+        #dash-cooldown-ui { display: none; }
+        #boss-ui-container {
+            position: absolute;
+            bottom: 100px;
+            width: 60%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #boss-name-display {
+            color: #ccc;
+            font-family: 'Creepster', cursive;
+            font-size: 2em;
+            text-shadow: 2px 2px #000;
+            margin: 0 0 5px 0;
+            display: none;
+        }
+        #boss-health-container {
+            width: 100%; height: 25px;
+            background-color: #333; border: 2px solid #111; border-radius: 5px;
+            display: none;
+        }
+        #boss-health-bar {
+            width: 100%; height: 100%; background-color: #8B0000;
+            border-radius: 3px; transition: width 0.2s linear;
+        }
+        #game-over-screen {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.9); justify-content: center; align-items: center;
+            flex-direction: column; text-align: center; z-index: 10;
+        }
+        #game-over-screen h2 {
+            font-family: 'Creepster', cursive; font-size: 6em; color: #8B0000;
+            text-shadow: 4px 4px #000; margin-bottom: 0;
+        }
+        #game-over-screen p { font-size: 2em; color: #a3a3a3; }
+        #restart-button {
+            padding: 15px 30px; font-size: 1.5em; cursor: pointer; background-color: #2a2a2a;
+            color: #a3a3a3; border: 2px solid #4d0000; border-radius: 5px;
+            font-family: 'Special Elite', monospace; box-shadow: 0 4px #1a0000;
+            transition: all 0.1s ease-in-out;
+        }
+        #restart-button:hover { background-color: #333; color: #fff; }
+        #restart-button:active { transform: translateY(4px); box-shadow: 0 0 #1a0000; }
+        #objective-text {
+            display: none;
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2em;
+            color: rgba(255, 255, 255, 0.4);
+            text-shadow: 1px 1px #000;
+            pointer-events: none;
+            z-index: 5;
+        }
+        .instructions { margin-top: 10px; font-size: 1em; color: #555; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <h1>BLIGHT!</h1>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="objective-text"></div>
+        <div id="ui-grid">
+            <div id="left-ui">
+                <div id="health-display">Liv: 🩸🩸🩸</div>
+                <div id="souls-display">Själar: 💀0</div>
+            </div>
+            <div id="center-ui">
+                 <div id="active-item-ui" class="cooldown-ui">
+                    <div id="active-item-icon" class="cooldown-icon"></div>
+                    <div id="active-item-cooldown" class="cooldown-bar" style="height: 0%;"></div>
+                </div>
+                 <div id="dash-cooldown-ui" class="cooldown-ui">
+                    <div id="dash-icon" class="cooldown-icon">»</div>
+                    <div id="dash-cooldown" class="cooldown-bar" style="height: 0%;"></div>
+                </div>
+            </div>
+            <div id="right-ui">
+                <div id="level-display">Nivå: 1</div>
+                <div id="score-display">Fragment: 0</div>
+            </div>
+        </div>
+        <div class="instructions">
+            <p>Rör dig: WASD &nbsp; Attackera: Piltangenter &nbsp; Karta: M &nbsp; Interagera: E &nbsp; Relik: MELLANSLAG &nbsp; Dash: SHIFT</p>
+        </div>
+        <div id="boss-ui-container">
+            <h2 id="boss-name-display"></h2>
+            <div id="boss-health-container">
+                <div id="boss-health-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-over-screen">
+        <h2 id="end-screen-title">UPPSLUKAD</h2>
+        <p id="final-score"></p>
+        <button id="restart-button">Vakna Igen</button>
+    </div>
+
+    <script>
+        // --- SETUP ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const ui = {
+            health: document.getElementById('health-display'),
+            souls: document.getElementById('souls-display'),
+            score: document.getElementById('score-display'),
+            level: document.getElementById('level-display'),
+            gameOver: document.getElementById('game-over-screen'),
+            endScreenTitle: document.getElementById('end-screen-title'),
+            finalScore: document.getElementById('final-score'),
+            restartButton: document.getElementById('restart-button'),
+            bossHealthContainer: document.getElementById('boss-health-container'),
+            bossNameDisplay: document.getElementById('boss-name-display'),
+            bossHealthBar: document.getElementById('boss-health-bar'),
+            objectiveText: document.getElementById('objective-text'),
+            activeItemIcon: document.getElementById('active-item-icon'),
+            activeItemCooldown: document.getElementById('active-item-cooldown'),
+            dashCooldownUI: document.getElementById('dash-cooldown-ui'),
+            dashCooldown: document.getElementById('dash-cooldown')
+        };
+
+        // --- SPELVARIABLER ---
+        let score = 0, souls = 0, gameOver = false, currentLevel = 1, showMap = false;
+        let map = [], rooms = {}, currentRoomCoords = { x: 0, y: 0 };
+        let projectiles = [], enemyProjectiles = [], bossProjectiles = [], companionProjectiles = [], drops = [], visualEffects = [];
+        let exit = { active: false, x: 0, y: 0, size: 40 };
+        let currentBoss = null;
+        let companionNPC = null;
+        let companion = null;
+        let abilityPickup = null;
+        let lastShotTime = 0;
+        let shopItems = [];
+        let backgroundPattern;
+        const MAP_SIZE = 7, DOOR_SIZE = 80, DOOR_THICKNESS = 10;
+
+        // --- SPELAROBJEKT ---
+        const player = {
+            x: canvas.width / 2, y: canvas.height / 2, radius: 15, speed: 4, dx: 0, dy: 0,
+            health: 3, maxHealth: 3, shotCooldown: 300,
+            invincible: false, invincibleDuration: 1000, lastHitTime: 0,
+            activeItem: null, passiveEffects: new Set(),
+            hasDash: false, dashCooldown: 2000, lastDashTime: -Infinity, isDashing: false, dashStartTime: 0, dashDirection: { x: 0, y: 0 },
+            particles: [],
+            draw() {
+                this.particles.push({x: this.x, y: this.y, life: 20});
+                for(let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.life--;
+                    ctx.fillStyle = `rgba(200, 200, 220, ${p.life / 20 * 0.2})`;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.life / 5, 0, Math.PI * 2); ctx.fill();
+                    if(p.life <= 0) this.particles.splice(i, 1);
+                }
+
+                const pulse = Math.sin(Date.now() / 200) * 2;
+                const coreColor = this.invincible ? 'rgba(255, 50, 50, 0.7)' : 'rgba(200, 200, 220, 0.8)';
+                ctx.fillStyle = this.invincible ? 'rgba(255, 0, 0, 0.3)' : 'rgba(100, 100, 120, 0.3)';
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius + 4 + pulse, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = coreColor;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI * 2); ctx.fill();
+            },
+            update() {
+                const now = Date.now();
+                if (this.isDashing) {
+                    const dashElapsed = now - this.dashStartTime;
+                    const dashDuration = 150;
+                    if (dashElapsed > dashDuration) {
+                        this.isDashing = false;
+                    } else {
+                        this.x += this.dashDirection.x * 25;
+                        this.y += this.dashDirection.y * 25;
+                        visualEffects.push({ type: 'dash_trail', x: this.x, y: this.y, life: 10, radius: this.radius });
+                        return;
+                    }
+                }
+                if (this.invincible && now - this.lastHitTime > this.invincibleDuration) this.invincible = false;
+                this.x += this.dx; this.y += this.dy;
+                const { x: roomX, y: roomY } = currentRoomCoords;
+                if (this.x - this.radius < DOOR_THICKNESS && (!map[roomY]?.[roomX - 1] || this.y < canvas.height / 2 - DOOR_SIZE / 2 || this.y > canvas.height / 2 + DOOR_SIZE / 2)) this.x = this.radius + DOOR_THICKNESS;
+                if (this.x + this.radius > canvas.width - DOOR_THICKNESS && (!map[roomY]?.[roomX + 1] || this.y < canvas.height / 2 - DOOR_SIZE / 2 || this.y > canvas.height / 2 + DOOR_SIZE / 2)) this.x = canvas.width - this.radius - DOOR_THICKNESS;
+                if (this.y - this.radius < DOOR_THICKNESS && (!map[roomY - 1]?.[roomX] || this.x < canvas.width / 2 - DOOR_SIZE / 2 || this.x > canvas.width / 2 + DOOR_SIZE / 2)) this.y = this.radius + DOOR_THICKNESS;
+                if (this.y + this.radius > canvas.height - DOOR_THICKNESS && (!map[roomY + 1]?.[roomX] || this.x < canvas.width / 2 - DOOR_SIZE / 2 || this.x > canvas.width / 2 + DOOR_SIZE / 2)) this.y = canvas.height - this.radius - DOOR_THICKNESS;
+            },
+            takeDamage(amount = 1) {
+                if (!this.invincible) {
+                    this.health -= amount; this.invincible = true; this.lastHitTime = Date.now();
+                    updateHealthDisplay();
+                    if (this.health <= 0) endGame(false);
+                }
+            },
+            useActiveItem() {
+                if (this.activeItem && Date.now() > this.activeItem.lastUsed + this.activeItem.cooldown) {
+                    this.activeItem.effect();
+                    this.activeItem.lastUsed = Date.now();
+                }
+            }
+        };
+
+        // --- SKADE & FÖREMÅLSSYSTEM ---
+        function damageEntity(entity, amount) {
+            if (!entity || entity.health <= 0) return;
+            // Ghost can't be damaged while phasing
+            if (entity.type === 'ghost' && entity.isPhasing) return;
+
+            entity.health -= amount;
+            entity.hitTimer = 100;
+            if (entity === currentBoss) {
+                updateBossHealthBar();
+            }
+            for (let i = 0; i < 8; i++) {
+                visualEffects.push({
+                    type: 'blood_splatter',
+                    x: entity.x, y: entity.y,
+                    vx: (Math.random() - 0.5) * 7, vy: (Math.random() - 0.5) * 7,
+                    size: Math.random() * 4 + 2, duration: 600, startTime: Date.now()
+                });
+            }
+        }
+
+        const activeItems = {
+            bomb: {
+                name: 'Instabil Kärna', icon: '💥', cooldown: 15000,
+                effect: () => {
+                    visualEffects.push({ type: 'explosion', x: player.x, y: player.y, radius: 0, maxRadius: 300, duration: 250, startTime: Date.now() });
+                    const currentRoom = rooms[`${currentRoomCoords.x},${currentRoomCoords.y}`];
+                    if (currentRoom) {
+                        currentRoom.enemies.forEach(e => {
+                            if (Math.hypot(e.x - player.x, e.y - player.y) < 300) damageEntity(e, 10);
+                        });
+                        if (currentBoss && Math.hypot(currentBoss.x - player.x, currentBoss.y - player.y) < 300) damageEntity(currentBoss, 10);
+                    }
+                }
+            }
+        };
+
+        // --- BUTIK & FÖLJESLAGARE ---
+        function initializeShopItems() {
+            shopItems = [
+                { id: 'hp', name: 'Extra Liv', cost: 50, x: canvas.width * 0.2, y: canvas.height / 2, purchased: false, apply: () => { player.maxHealth++; player.health = player.maxHealth; updateHealthDisplay(); } },
+                { id: 'fireRate', name: 'Snabbare Skott', cost: 40, x: canvas.width * 0.4, y: canvas.height / 2, purchased: false, apply: () => { player.shotCooldown = Math.max(100, player.shotCooldown - 40); } },
+                { id: 'speed', name: 'Ökad Snabbhet', cost: 30, x: canvas.width * 0.6, y: canvas.height / 2, purchased: false, apply: () => { player.speed += 0.5; } },
+                { id: 'venom', name: 'Giftiga Skott', cost: 60, x: canvas.width * 0.8, y: canvas.height / 2, purchased: false, apply: () => { player.passiveEffects.add('venom'); } }
+            ];
+        }
+
+        function interact() {
+            const currentRoom = rooms[`${currentRoomCoords.x},${currentRoomCoords.y}`];
+            if (currentRoom.type === 'shop') {
+                buyItem();
+            } else if (currentRoom.type === 'companion' && companionNPC && !companionNPC.recruited) {
+                if (Math.hypot(player.x - companionNPC.x, player.y - companionNPC.y) < 50) {
+                    recruitCompanion();
+                    companionNPC = null;
+                    currentRoom.cleared = true;
+                }
+            } else if (currentRoom.type === 'ability' && abilityPickup && !abilityPickup.pickedUp) {
+                if (Math.hypot(player.x - abilityPickup.x, player.y - abilityPickup.y) < 50) {
+                    player.hasDash = true;
+                    abilityPickup.pickedUp = true;
+                    ui.dashCooldownUI.style.display = 'flex';
+                }
+            }
+        }
+
+        function buyItem() {
+            for (const item of shopItems) {
+                if (Math.hypot(player.x - item.x, player.y - item.y) < player.radius + 30 && !item.purchased && souls >= item.cost) {
+                    souls -= item.cost; item.purchased = true; item.apply();
+                    updateSoulsDisplay(); break;
+                }
+            }
+        }
+
+        function spawnCompanionNPC() {
+            if (companion) return; // Spawn only if player doesn't have one
+            companionNPC = { x: canvas.width / 2, y: canvas.height / 2, recruited: false };
+        }
+
+        function recruitCompanion() {
+            companion = {
+                x: player.x - 40, y: player.y, radius: 10,
+                shotCooldown: 1200, lastShot: 0, target: null
+            };
+        }
+
+        function spawnAbilityPickup() {
+            if (player.hasDash) return;
+            abilityPickup = { x: canvas.width / 2, y: canvas.height / 2, pickedUp: false };
+        }
+
+        // --- KARTGENERERING & NIVÅHANTERING ---
+        function generateMap() {
+            map = Array(MAP_SIZE).fill(0).map(() => Array(MAP_SIZE).fill(0));
+            rooms = {};
+            let x = Math.floor(MAP_SIZE / 2), y = Math.floor(MAP_SIZE / 2);
+            const startCoords = {x, y};
+            const roomCount = 8 + Math.min(currentLevel, 5);
+            let createdRooms = 0;
+            let roomCoords = [];
+
+            while (createdRooms < roomCount) {
+                const key = `${x},${y}`;
+                if (!map[y][x]) {
+                    map[y][x] = 1;
+                    roomCoords.push({x, y});
+                    rooms[key] = {
+                        enemies: [], cleared: false, visited: false, type: 'normal',
+                        enemyCount: Math.floor(Math.random() * 3) + 1 + currentLevel,
+                        bloodPuddles: []
+                    };
+                    createdRooms++;
+                }
+                const directions = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+                const dir = directions[Math.floor(Math.random() * directions.length)];
+                x = Math.max(0, Math.min(MAP_SIZE - 1, x + dir[0]));
+                y = Math.max(0, Math.min(MAP_SIZE - 1, y + dir[1]));
+            }
+            const startKey = `${startCoords.x},${startCoords.y}`;
+            let potentialRooms = roomCoords.filter(c => c.x !== startCoords.x || c.y !== startCoords.y);
+            
+            let farthestRoom = potentialRooms[0], maxDist = 0;
+            potentialRooms.forEach(c => {
+                const dist = Math.hypot(c.x - startCoords.x, c.y - startCoords.y);
+                if (dist > maxDist) { maxDist = dist; farthestRoom = c; }
+            });
+            
+            rooms[startKey].type = 'start'; rooms[startKey].cleared = true; rooms[startKey].enemyCount = 0;
+            
+            const bossKey = `${farthestRoom.x},${farthestRoom.y}`;
+            rooms[bossKey].type = 'boss'; rooms[bossKey].enemyCount = 0;
+            
+            potentialRooms = potentialRooms.filter(c => c.x !== farthestRoom.x || c.y !== farthestRoom.y);
+            if (potentialRooms.length > 0) {
+                const shopCoords = potentialRooms[Math.floor(Math.random() * potentialRooms.length)];
+                const shopKey = `${shopCoords.x},${shopCoords.y}`;
+                rooms[shopKey].type = 'shop'; rooms[shopKey].cleared = true; rooms[shopKey].enemyCount = 0;
+                potentialRooms = potentialRooms.filter(c => c.x !== shopCoords.x || c.y !== shopCoords.y);
+            }
+
+            if (Math.random() < 0.25 && potentialRooms.length > 0 && !companion) {
+                const shuffledCoords = potentialRooms.sort(() => 0.5 - Math.random());
+                for (const coord of shuffledCoords) {
+                    if (findDeadEnd(coord.x, coord.y)) {
+                        rooms[`${coord.x},${coord.y}`].type = 'companion';
+                        rooms[`${coord.x},${coord.y}`].cleared = true;
+                        potentialRooms = potentialRooms.filter(c => c.x !== coord.x || c.y !== coord.y);
+                        break;
+                    }
+                }
+            }
+
+            if (Math.random() < 0.20 && potentialRooms.length > 0 && !player.hasDash) {
+                 const shuffledCoords = potentialRooms.sort(() => 0.5 - Math.random());
+                for (const coord of shuffledCoords) {
+                    if (findDeadEnd(coord.x, coord.y)) {
+                        rooms[`${coord.x},${coord.y}`].type = 'ability';
+                        rooms[`${coord.x},${coord.y}`].cleared = true;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        function findDeadEnd(x, y) {
+            let connections = 0;
+            const directions = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+            for (const dir of directions) {
+                if (map[y + dir[1]]?.[x + dir[0]]) {
+                    connections++;
+                }
+            }
+            return connections === 1;
+        }
+
+        function startNewLevel(level) {
+            currentLevel = level;
+            ui.level.textContent = `Nivå: ${currentLevel}`;
+            player.x = canvas.width / 2; player.y = canvas.height / 2;
+            projectiles.length = 0; enemyProjectiles.length = 0; bossProjectiles.length = 0; companionProjectiles.length = 0; drops.length = 0;
+            exit.active = false; currentBoss = null;
+            if(!companion) { // Only reset if no companion
+                companionNPC = null;
+            }
+            player.activeItem = {...activeItems.bomb, lastUsed: -Infinity};
+            updateCooldownsUI();
+
+            if (currentLevel === 1) {
+                ui.objectiveText.textContent = "Döda Den Avgrundsdjupa Kärnan";
+                ui.objectiveText.style.display = 'block';
+            } else {
+                ui.objectiveText.style.display = 'none';
+            }
+            
+            generateMap();
+            initializeShopItems();
+            currentRoomCoords = { x: Math.floor(MAP_SIZE / 2), y: Math.floor(MAP_SIZE / 2) };
+            enterRoom(currentRoomCoords.x, currentRoomCoords.y);
+        }
+        
+        function enterRoom(newX, newY) {
+            currentRoomCoords = { x: newX, y: newY };
+            projectiles.length = 0; enemyProjectiles.length = 0; bossProjectiles.length = 0; companionProjectiles.length = 0;
+            const key = `${newX},${newY}`;
+            const currentRoom = rooms[key];
+            drops = drops.filter(d => d.type === 'active_item');
+            
+            if (currentRoom.type !== 'start' || currentLevel !== 1) {
+                 ui.objectiveText.style.display = 'none';
+            }
+
+            if (currentRoom.type === 'boss' && currentBoss) {
+                ui.bossHealthContainer.style.display = 'block';
+                ui.bossNameDisplay.style.display = 'block';
+                ui.bossNameDisplay.textContent = currentBoss.name;
+            } else {
+                ui.bossHealthContainer.style.display = 'none';
+                ui.bossNameDisplay.style.display = 'none';
+            }
+
+            if (!currentRoom.visited) {
+                currentRoom.visited = true;
+                if (currentRoom.type === 'normal') spawnEnemiesForRoom(currentRoom);
+                else if (currentRoom.type === 'boss') { 
+                    spawnBoss(); 
+                    ui.bossHealthContainer.style.display = 'block';
+                    ui.bossNameDisplay.style.display = 'block';
+                    ui.bossNameDisplay.textContent = currentBoss.name;
+                } else if (currentRoom.type === 'companion') {
+                    spawnCompanionNPC();
+                } else if (currentRoom.type === 'ability') {
+                    spawnAbilityPickup();
+                }
+            }
+        }
+        
+        // --- FIENDE & BOSS-LOGIK ---
+        function spawnEnemiesForRoom(room) {
+            let availableEnemyTypes = ['melee', 'rusher', 'tank', 'shooter'];
+            if (currentLevel >= 3) availableEnemyTypes.push('splitter');
+            if (currentLevel >= 6) availableEnemyTypes.push('ghost');
+
+            for (let i = 0; i < room.enemyCount; i++) {
+                const type = availableEnemyTypes[Math.floor(Math.random() * availableEnemyTypes.length)];
+                let enemy;
+                const spawnX = canvas.width / 2 + (Math.random() - 0.5) * (canvas.width * 0.8);
+                const spawnY = canvas.height / 2 + (Math.random() - 0.5) * (canvas.height * 0.8);
+
+                switch(type) {
+                    case 'rusher':
+                        enemy = { type, x: spawnX, y: spawnY, size: 10, speed: 3.5, health: Math.ceil(currentLevel * 0.5), hitTimer: 0 };
+                        break;
+                    case 'tank':
+                        enemy = { type, x: spawnX, y: spawnY, size: 30, speed: 0.8, health: currentLevel * 4, hitTimer: 0 };
+                        break;
+                    case 'shooter':
+                        enemy = { type, x: spawnX, y: spawnY, size: 20, speed: 1, health: currentLevel, hitTimer: 0, shootCooldown: 2000, lastShot: Date.now() };
+                        break;
+                    case 'splitter':
+                        enemy = { type, x: spawnX, y: spawnY, size: 25, speed: 1.2, health: currentLevel * 2, hitTimer: 0 };
+                        break;
+                    case 'ghost':
+                        enemy = { type, x: spawnX, y: spawnY, size: 18, speed: 1.5, health: currentLevel * 1.5, hitTimer: 0, isPhasing: false, phaseTimer: Date.now() + 3000 };
+                        break;
+                    case 'melee':
+                    default:
+                         enemy = { type, x: spawnX, y: spawnY, size: 20, speed: 1.5, health: currentLevel, hitTimer: 0, offset: Math.random() * 1000 };
+                         break;
+                }
+                enemy.poisoned = { active: false, dps: 0, duration: 0, lastTick: 0 };
+                room.enemies.push(enemy);
+            }
+        }
+        
+        const bossTypes = [
+            { name: 'Väktaren', health: 50, speed: 1.8, size: 50, color: '#4d0f0f', attacks: ['chase', 'shoot', 'dash'] },
+            { name: 'Svärmen', health: 80, speed: 1.2, size: 60, color: '#4a694a', attacks: ['chase', 'spawn'] },
+            { name: 'Kaosögat', health: 60, speed: 2.0, size: 45, color: '#6e4a6e', attacks: ['teleport', 'bulletHell'] },
+            { name: 'Avgrundsdjupa Kärnan', health: 200, speed: 2.2, size: 70, color: '#000', attacks: ['phase_one', 'phase_two'] }
+        ];
+
+        function spawnBoss() {
+            let bossData;
+            if (currentLevel >= 10) bossData = bossTypes[3];
+            else if (currentLevel >= 7) bossData = bossTypes[2];
+            else if (currentLevel >= 4) bossData = bossTypes[1];
+            else bossData = bossTypes[0];
+
+            currentBoss = {
+                ...bossData,
+                x: canvas.width / 2, y: 100, radius: bossData.size,
+                maxHealth: bossData.health * currentLevel,
+                health: bossData.health * currentLevel,
+                state: 'idle', stateTimer: 2000, lastStateChange: Date.now(),
+                poisoned: { active: false, dps: 0, duration: 0, lastTick: 0 }, hitTimer: 0,
+                phase: 1,
+            };
+            updateBossHealthBar();
+        }
+
+        function updateBossHealthBar() { if(currentBoss) { ui.bossHealthBar.style.width = `${(currentBoss.health / currentBoss.maxHealth) * 100}%`; } }
+        
+        function updateProjectiles() {
+            [...projectiles, ...enemyProjectiles, ...bossProjectiles, ...companionProjectiles].forEach(p => { p.x += p.dx; p.y += p.dy; });
+            projectiles = projectiles.filter(p => p.x > 0 && p.x < canvas.width && p.y > 0 && p.y < canvas.height);
+            enemyProjectiles = enemyProjectiles.filter(p => p.x > 0 && p.x < canvas.width && p.y > 0 && p.y < canvas.height);
+            bossProjectiles = bossProjectiles.filter(p => p.x > 0 && p.x < canvas.width && p.y > 0 && p.y < canvas.height);
+            companionProjectiles = companionProjectiles.filter(p => p.x > 0 && p.x < canvas.width && p.y > 0 && p.y < canvas.height);
+        }
+
+        // --- KOLLISIONER ---
+        function checkCollisions() {
+            const currentRoom = rooms[`${currentRoomCoords.x},${currentRoomCoords.y}`];
+            if (!currentRoom) return;
+
+            // Spelarens & Följeslagarens projektiler
+            [...projectiles, ...companionProjectiles].forEach((p, i, arr) => {
+                let hit = false;
+                // vs Fiender
+                for (let j = currentRoom.enemies.length - 1; j >= 0; j--) {
+                    const e = currentRoom.enemies[j];
+                    if (e.type === 'ghost' && e.isPhasing) continue;
+                    if (Math.hypot(p.x - e.x, p.y - e.y) < p.size + e.size) {
+                        damageEntity(e, p.damage || 0.2);
+                        if (player.passiveEffects.has('venom') && !p.damage) { e.poisoned = { active: true, dps: 1, duration: 3000, lastTick: Date.now() }; }
+                        hit = true; break;
+                    }
+                }
+                // vs Boss
+                if (currentBoss && Math.hypot(p.x - currentBoss.x, p.y - currentBoss.y) < p.size + currentBoss.radius) {
+                    damageEntity(currentBoss, p.damage || 0.2);
+                    if (player.passiveEffects.has('venom') && !p.damage) { currentBoss.poisoned = { active: true, dps: 1, duration: 3000, lastTick: Date.now() }; }
+                    hit = true;
+                }
+                if(hit) arr.splice(i, 1);
+            });
+
+            // Fiender & Projektiler vs Spelare
+            currentRoom.enemies.forEach(e => { 
+                if (e.type === 'ghost' && e.isPhasing) return;
+                if (Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.size) player.takeDamage(); 
+            });
+            [...enemyProjectiles, ...bossProjectiles].forEach((p, i, arr) => {
+                if(Math.hypot(player.x - p.x, player.y - p.y) < player.radius + p.size){ player.takeDamage(); arr.splice(i, 1); }
+            });
+            // Spelare vs Drops
+            for (let i = drops.length - 1; i >= 0; i--) {
+                const d = drops[i];
+                if (Math.hypot(player.x - d.x, player.y - d.y) < player.radius + d.size) {
+                    if (d.type === 'soul') { souls++; updateSoulsDisplay(); }
+                    else if (d.type === 'health' && player.health < player.maxHealth) { player.health++; updateHealthDisplay(); }
+                    drops.splice(i, 1);
+                }
+            }
+            // Spelare vs Utgång
+            if(exit.active && currentRoom.type === 'boss' && Math.hypot(player.x - exit.x, player.y - exit.y) < player.radius + exit.size / 2) {
+                startNewLevel(currentLevel + 1);
+            }
+        }
+
+        // --- RITFUNKTIONER ---
+        function drawDrops() {
+            drops.forEach(d => {
+                if (d.type === 'soul') {
+                    ctx.fillStyle = 'rgba(180, 200, 255, 0.9)';
+                    ctx.beginPath(); ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2); ctx.fill();
+                } else if (d.type === 'health') {
+                    ctx.fillStyle = '#ff4141';
+                    ctx.font = '20px sans-serif'; ctx.fillText('🩸', d.x - d.size, d.y + d.size);
+                }
+            });
+        }
+        function drawShopItems() {
+             shopItems.forEach(item => {
+                ctx.strokeStyle = item.purchased ? '#555' : '#9c8a4d';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(item.x - 40, item.y - 40, 80, 80);
+                
+                ctx.fillStyle = item.purchased ? '#555' : '#fff';
+                ctx.textAlign = 'center';
+                ctx.font = '16px "Special Elite"';
+                ctx.fillText(item.name, item.x, item.y - 15);
+                
+                let symbol = '';
+                if (item.id === 'hp') symbol = '🩸';
+                if (item.id === 'fireRate') symbol = '≫';
+                if (item.id === 'speed') symbol = '→';
+                if (item.id === 'venom') symbol = '☠️';
+                
+                ctx.font = '24px sans-serif';
+                ctx.fillText(symbol, item.x, item.y + 10);
+                
+                if (!item.purchased) {
+                    ctx.font = '14px "Special Elite"';
+                    ctx.fillStyle = '#9c8a4d';
+                    ctx.fillText(`💀${item.cost}`, item.x, item.y + 35);
+                }
+            });
+        }
+        function drawExit() {
+            const currentRoom = rooms[`${currentRoomCoords.x},${currentRoomCoords.y}`];
+            if(!exit.active || !currentRoom || currentRoom.type !== 'boss') return;
+
+            ctx.fillStyle = '#3a2b1e';
+            ctx.fillRect(exit.x - exit.size / 2, exit.y - exit.size / 2, exit.size, exit.size);
+            ctx.fillStyle = '#1a140d';
+            ctx.fillRect(exit.x - exit.size / 2 + 5, exit.y - exit.size / 2 + 5, exit.size - 10, exit.size - 10);
+            ctx.strokeStyle = '#5c442e';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(exit.x - exit.size / 2, exit.y - exit.size / 2, exit.size, exit.size);
+        }
+        function drawProjectiles() {
+            projectiles.forEach(p => {
+                const color = player.passiveEffects.has('venom') ? '#a3ff99' : '#a00000';
+                ctx.fillStyle = color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            });
+            enemyProjectiles.forEach(p => {
+                ctx.fillStyle = '#91e077'; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            });
+            bossProjectiles.forEach(p => {
+                ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            });
+            companionProjectiles.forEach(p => {
+                ctx.fillStyle = '#add8e6'; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            });
+        }
+        function drawMap() {
+             ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const mapGridSize = 40, mapPadding = 15;
+            const mapWidth = MAP_SIZE * (mapGridSize + mapPadding);
+            const mapHeight = MAP_SIZE * (mapGridSize + mapPadding);
+            const mapStartX = (canvas.width - mapWidth) / 2;
+            const mapStartY = (canvas.height - mapHeight) / 2;
+            for (let y = 0; y < MAP_SIZE; y++) {
+                for (let x = 0; x < MAP_SIZE; x++) {
+                    if (map[y][x]) {
+                        const key = `${x},${y}`;
+                        const room = rooms[key];
+                        if (room.visited) {
+                            const roomX = mapStartX + x * (mapGridSize + mapPadding);
+                            const roomY = mapStartY + y * (mapGridSize + mapPadding);
+                            if (room.type === 'boss') ctx.fillStyle = '#8B0000';
+                            else if (room.type === 'shop') ctx.fillStyle = '#ffd700';
+                            else if (room.type === 'companion') ctx.fillStyle = '#00FFFF';
+                            else if (room.type === 'ability') ctx.fillStyle = '#9400D3';
+                            else if (x === currentRoomCoords.x && y === currentRoomCoords.y) ctx.fillStyle = '#c9b47c';
+                            else ctx.fillStyle = '#7a6a4f';
+                            ctx.fillRect(roomX, roomY, mapGridSize, mapGridSize);
+                        }
+                    }
+                }
+            }
+        }
+        function updateAndDrawVisualEffects(now) {
+            for (let i = visualEffects.length - 1; i >= 0; i--) {
+                const effect = visualEffects[i];
+                const elapsed = now - effect.startTime;
+                if (effect.type === 'explosion') {
+                    const progress = elapsed / effect.duration;
+                    effect.radius = effect.maxRadius * progress;
+                    const alpha = 1 - progress;
+                    ctx.fillStyle = `rgba(255, 200, 100, ${alpha * 0.5})`;
+                    ctx.beginPath();
+                    ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (effect.type === 'blood_splatter') {
+                    effect.x += effect.vx;
+                    effect.y += effect.vy;
+                    effect.vx *= 0.95;
+                    effect.vy *= 0.95;
+                    const alpha = 1 - (elapsed / effect.duration);
+                    ctx.fillStyle = `rgba(139, 0, 0, ${alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (effect.type === 'dash_trail') {
+                    effect.life--;
+                    ctx.fillStyle = `rgba(200, 200, 220, ${effect.life / 10 * 0.3})`;
+                    ctx.beginPath();
+                    ctx.arc(effect.x, effect.y, player.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    if (effect.life <= 0) visualEffects.splice(i,1);
+                }
+                if (elapsed > effect.duration && effect.type !== 'dash_trail') {
+                    visualEffects.splice(i, 1);
+                }
+            }
+        }
+        
+        // --- ÖVRIGA FUNKTIONER ---
+        const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, ' ': false, 'Shift': false };
+        document.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (key === 'm') { showMap = !showMap; }
+            else if (key === 'e') { interact(); }
+            else if (e.code === 'Space' && !keys[' ']) { player.useActiveItem(); keys[' '] = true; }
+            else if (e.key === 'Shift' && !keys['Shift']) { tryDash(); keys['Shift'] = true; }
+            else if (keys.hasOwnProperty(e.key)) { keys[e.key] = true; }
+        });
+        document.addEventListener('keyup', (e) => { 
+            if (keys.hasOwnProperty(e.key)) { keys[e.key] = false; }
+            if (e.code === 'Space') { keys[' '] = false; }
+            if (e.key === 'Shift') { keys['Shift'] = false; }
+        });
+
+        function tryDash() {
+            if (!player.hasDash || player.isDashing || Date.now() - player.lastDashTime < player.dashCooldown) {
+                return;
+            }
+
+            let dashDx = 0;
+            let dashDy = 0;
+            if (keys.w) dashDy = -1;
+            if (keys.s) dashDy = 1;
+            if (keys.a) dashDx = -1;
+            if (keys.d) dashDx = 1;
+
+            if (dashDx === 0 && dashDy === 0) return;
+
+            const len = Math.hypot(dashDx, dashDy);
+            player.dashDirection = { x: dashDx / len, y: dashDy / len };
+            
+            player.isDashing = true;
+            player.invincible = true;
+            player.dashStartTime = Date.now();
+            player.lastDashTime = Date.now();
+        }
+        
+        function updateHealthDisplay() { ui.health.innerHTML = "Liv: " + "🩸".repeat(player.health) + "🖤".repeat(player.maxHealth - player.health); }
+        function updateSoulsDisplay() { ui.souls.innerHTML = `Själar: 💀${souls}`; }
+        function updateScoreDisplay() { ui.score.textContent = `Fragment: ${score}`; }
+        function updateCooldownsUI() {
+            if (player.activeItem) {
+                ui.activeItemIcon.textContent = player.activeItem.icon;
+                const cooldownProgress = Math.min(1, (Date.now() - player.activeItem.lastUsed) / player.activeItem.cooldown);
+                ui.activeItemCooldown.style.height = `${100 - cooldownProgress * 100}%`;
+            }
+            if (player.hasDash) {
+                const cooldownProgress = Math.min(1, (Date.now() - player.lastDashTime) / player.dashCooldown);
+                ui.dashCooldown.style.height = `${100 - cooldownProgress * 100}%`;
+            }
+        }
+        function endGame(isWin) {
+            gameOver = true;
+            if (isWin) {
+                ui.endScreenTitle.textContent = "BEFRIAD";
+                ui.endScreenTitle.style.color = "#ffd700";
+                ui.finalScore.textContent = `Du besegrade djupet med ${score} fragment!`;
+            } else {
+                ui.endScreenTitle.textContent = "UPPSLUKAD";
+                ui.endScreenTitle.style.color = "#8B0000";
+                ui.finalScore.textContent = `Du samlade ${score} fragment på nivå ${currentLevel}`;
+            }
+            ui.gameOver.style.display = 'flex';
+        }
+        function resetGame() {
+            gameOver = false; score = 0; souls = 0;
+            player.health = 3; player.maxHealth = 3;
+            player.speed = 4; player.shotCooldown = 300;
+            player.invincible = false; player.passiveEffects.clear();
+            player.hasDash = false; ui.dashCooldownUI.style.display = 'none';
+            companion = null;
+            companionNPC = null;
+            startNewLevel(1);
+            updateHealthDisplay(); updateScoreDisplay(); updateSoulsDisplay();
+            ui.gameOver.style.display = 'none';
+            gameLoop();
+        }
+        ui.restartButton.addEventListener('click', resetGame);
+        
+        // --- HUVUDLOOP ---
+        function gameLoop() {
+            if (gameOver) return;
+            const now = Date.now();
+            const currentRoom = rooms[`${currentRoomCoords.x},${currentRoomCoords.y}`];
+
+            if (!showMap) {
+                // Uppdatera logik
+                player.dx = 0; player.dy = 0;
+                if (keys.w) player.dy = -player.speed; if (keys.s) player.dy = player.speed;
+                if (keys.a) player.dx = -player.speed; if (keys.d) player.dx = player.speed;
+                if (now - lastShotTime >= player.shotCooldown) {
+                    let shootDx = 0, shootDy = 0;
+                    if (keys.ArrowUp) shootDy = -1; else if (keys.ArrowDown) shootDy = 1;
+                    else if (keys.ArrowLeft) shootDx = -1; else if (keys.ArrowRight) shootDx = 1;
+                    if (shootDx !== 0 || shootDy !== 0) {
+                        projectiles.push({ x: player.x, y: player.y, dx: shootDx * 8, dy: shootDy * 8, size: 7 });
+                        lastShotTime = now;
+                    }
+                }
+                player.update();
+                updateEnemies(now);
+                if (currentBoss) {
+                    updateBoss(now);
+                    if(currentBoss.hitTimer > 0) currentBoss.hitTimer -= 16;
+                    if (currentBoss.health <= 0) {
+                        score += 100 * currentLevel; updateScoreDisplay();
+                        for (let i = 0; i < 10; i++) { drops.push({x: currentBoss.x + (Math.random() - 0.5) * 50, y: currentBoss.y + (Math.random() - 0.5) * 50, type: 'soul', size: 8}); }
+                        
+                        if (currentLevel >= 10) {
+                            endGame(true);
+                        } else {
+                            exit.active = true;
+                            exit.x = canvas.width / 2; exit.y = canvas.height / 2;
+                        }
+                        currentBoss = null;
+                        currentRoom.cleared = true; 
+                        ui.bossHealthContainer.style.display = 'none';
+                        ui.bossNameDisplay.style.display = 'none';
+                    }
+                }
+                updateProjectiles();
+                if(companion) updateCompanion(now);
+                checkCollisions();
+                checkDoorCollision();
+                updateCooldownsUI();
+            }
+
+            // Rita allt
+            drawBackground(); 
+            drawBloodPuddles();
+            drawDoors(); drawExit(); drawDrops();
+            if (currentRoom && currentRoom.type === 'shop') drawShopItems();
+            if (currentRoom && currentRoom.type === 'companion') drawCompanionNPC();
+            if (currentRoom && currentRoom.type === 'ability') drawAbilityPickup();
+            player.draw();
+            if(companion) drawCompanion();
+            if (currentRoom) drawEnemies(currentRoom);
+            if (currentBoss) drawBoss();
+            drawProjectiles();
+            updateAndDrawVisualEffects(now);
+            drawLighting();
+            if (showMap) drawMap();
+
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // --- RIT- & UPPDATERINGSHJÄLPARE ---
+        function createBackgroundPattern() {
+            const patternCanvas = document.createElement('canvas');
+            const patternCtx = patternCanvas.getContext('2d');
+            patternCanvas.width = 100;
+            patternCanvas.height = 100;
+            patternCtx.fillStyle = '#1a1a1a';
+            patternCtx.fillRect(0, 0, 100, 100);
+            patternCtx.strokeStyle = 'rgba(0,0,0,0.2)';
+            for(let i = 0; i < 20; i++) {
+                patternCtx.beginPath();
+                patternCtx.moveTo(Math.random() * 100, Math.random() * 100);
+                patternCtx.lineTo(Math.random() * 100, Math.random() * 100);
+                patternCtx.stroke();
+            }
+            return ctx.createPattern(patternCanvas, 'repeat');
+        }
+        backgroundPattern = createBackgroundPattern();
+
+        function drawBackground() {
+            ctx.fillStyle = backgroundPattern;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        function drawBloodPuddles() {
+            const currentRoom = rooms[`${currentRoomCoords.x},${currentRoomCoords.y}`];
+            if (currentRoom && currentRoom.bloodPuddles) {
+                ctx.fillStyle = 'rgba(100, 0, 0, 0.6)';
+                currentRoom.bloodPuddles.forEach(puddle => {
+                    ctx.beginPath();
+                    if (puddle.shape.length < 2) return;
+                    ctx.moveTo(puddle.shape[0].x, puddle.shape[0].y);
+                    for(let i = 1; i < puddle.shape.length - 1; i+=2) {
+                        ctx.quadraticCurveTo(puddle.shape[i].x, puddle.shape[i+1].y, puddle.shape[i+1].x, puddle.shape[i+1].y);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                });
+            }
+        }
+        function drawDoors() {
+            const currentRoom = rooms[`${currentRoomCoords.x},${currentRoomCoords.y}`]; if (!currentRoom) return;
+            const doorColor = currentRoom.cleared ? '#4a3131' : '#5e0d0d', wallColor = '#2f1e1e';
+            const { x, y } = currentRoomCoords;
+            ctx.fillStyle = map[y - 1]?.[x] ? doorColor : wallColor; ctx.fillRect(canvas.width / 2 - DOOR_SIZE / 2, 0, DOOR_SIZE, DOOR_THICKNESS);
+            ctx.fillStyle = map[y + 1]?.[x] ? doorColor : wallColor; ctx.fillRect(canvas.width / 2 - DOOR_SIZE / 2, canvas.height - DOOR_THICKNESS, DOOR_SIZE, DOOR_THICKNESS);
+            ctx.fillStyle = map[y]?.[x - 1] ? doorColor : wallColor; ctx.fillRect(0, canvas.height / 2 - DOOR_SIZE / 2, DOOR_THICKNESS, DOOR_SIZE);
+            ctx.fillStyle = map[y]?.[x + 1] ? doorColor : wallColor; ctx.fillRect(canvas.width - DOOR_THICKNESS, canvas.height / 2 - DOOR_SIZE / 2, DOOR_THICKNESS, DOOR_SIZE);
+        }
+        function drawEnemies(room) {
+            room.enemies.forEach(e => {
+                let color = '#5c1f1f';
+                let alpha = 1.0;
+                if (e.type === 'ghost') {
+                    color = '#e0e0e0';
+                    alpha = e.isPhasing ? 0.4 : 1.0;
+                }
+                if(e.hitTimer > 0) color = '#fff';
+                else if (e.poisoned.active) color = '#5e705e';
+                
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = color;
+
+                if (e.type === 'rusher') {
+                    ctx.beginPath(); ctx.rect(e.x - e.size, e.y - e.size, e.size * 2, e.size * 2); ctx.fill();
+                } else if (e.type === 'splitter') {
+                    ctx.fillStyle = '#6b8e23';
+                    if(e.hitTimer > 0) ctx.fillStyle = '#fff';
+                    ctx.beginPath(); ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2); ctx.fill();
+                }
+                else if (e.type === 'ghost') {
+                    ctx.beginPath();
+                    ctx.moveTo(e.x, e.y - e.size);
+                    ctx.bezierCurveTo(e.x + e.size, e.y - e.size, e.x + e.size, e.y + e.size, e.x, e.y + e.size);
+                    ctx.bezierCurveTo(e.x - e.size, e.y + e.size, e.x - e.size, e.y - e.size, e.x, e.y - e.size);
+                    ctx.fill();
+                }
+                else {
+                    const pulse = e.offset ? Math.sin((Date.now() + e.offset) / 300) * (e.size / 10) : 0;
+                    const effectiveSize = e.size + pulse;
+                    ctx.beginPath(); ctx.arc(e.x, e.y, effectiveSize, 0, Math.PI * 2); ctx.fill();
+                }
+                ctx.globalAlpha = 1.0;
+            });
+        }
+        function drawBoss() {
+            if (!currentBoss) return;
+            const pulse = Math.sin(Date.now() / 400) * 5;
+            ctx.fillStyle = currentBoss.hitTimer > 0 ? '#fff' : (currentBoss.poisoned.active ? '#5e705e' : currentBoss.color);
+            ctx.beginPath(); ctx.arc(currentBoss.x, currentBoss.y, currentBoss.radius + pulse, 0, Math.PI * 2); ctx.fill();
+            
+            if (currentBoss.name === 'Avgrundsdjupa Kärnan' && currentBoss.phase === 2) {
+                 ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 4; ctx.stroke();
+            } else {
+                ctx.fillStyle = '#2e0f0f';
+                ctx.beginPath(); ctx.arc(currentBoss.x, currentBoss.y, currentBoss.radius - 10 + pulse, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.fillStyle = 'yellow';
+            ctx.beginPath(); ctx.arc(currentBoss.x, currentBoss.y, 10, 0, Math.PI * 2); ctx.fill();
+        }
+        function drawCompanion() {
+            if (!companion) return;
+            ctx.fillStyle = 'rgba(150, 180, 255, 0.7)';
+            ctx.beginPath();
+            ctx.arc(companion.x, companion.y, companion.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        function drawCompanionNPC() {
+            if (!companionNPC) return;
+            ctx.fillStyle = 'rgba(150, 180, 255, 0.9)';
+            ctx.beginPath();
+            ctx.arc(companionNPC.x, companionNPC.y, 20, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = '18px "Special Elite"';
+            ctx.textAlign = 'center';
+            ctx.fillText("Tryck E för att befria", companionNPC.x, companionNPC.y - 30);
+        }
+        function drawAbilityPickup() {
+            if (!abilityPickup || abilityPickup.pickedUp) return;
+            const pulse = Math.sin(Date.now() / 150) * 3;
+            ctx.fillStyle = `rgba(148, 0, 211, 0.7)`;
+            ctx.beginPath();
+            ctx.arc(abilityPickup.x, abilityPickup.y, 20 + pulse, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = '24px "Special Elite"';
+            ctx.textAlign = 'center';
+            ctx.fillText('»', abilityPickup.x, abilityPickup.y + 8);
+        }
+        function drawLighting() {
+            const lightRadius = 200 + Math.sin(Date.now() / 300) * 10;
+            const gradient = ctx.createRadialGradient(player.x, player.y, lightRadius, player.x, player.y, lightRadius + 250);
+            gradient.addColorStop(0, 'rgba(0,0,0,0)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0.8)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        function updateBoss(now) {
+            if (!currentBoss) return;
+            if (currentBoss.poisoned.active) {
+                if (now > currentBoss.poisoned.lastTick + 1000) {
+                    damageEntity(currentBoss, currentBoss.poisoned.dps);
+                    currentBoss.poisoned.lastTick = now;
+                    currentBoss.poisoned.duration -= 1000;
+                }
+                if (currentBoss.poisoned.duration <= 0) currentBoss.poisoned.active = false;
+            }
+
+            if (now - currentBoss.lastStateChange > currentBoss.stateTimer) {
+                currentBoss.lastStateChange = now;
+                let availableAttacks = currentBoss.attacks;
+                if (currentBoss.name === 'Avgrundsdjupa Kärnan') {
+                    if (currentBoss.health < currentBoss.maxHealth / 2 && currentBoss.phase === 1) {
+                        currentBoss.phase = 2;
+                        currentBoss.speed *= 1.5;
+                    }
+                    availableAttacks = currentBoss.phase === 1 ? ['chase', 'shoot'] : ['dash', 'bulletHell', 'teleport'];
+                }
+                currentBoss.state = availableAttacks[Math.floor(Math.random() * availableAttacks.length)];
+                currentBoss.stateTimer = 2000 + Math.random() * 2000;
+            }
+
+            const angle = Math.atan2(player.y - currentBoss.y, player.x - currentBoss.x);
+            switch (currentBoss.state) {
+                case 'chase': currentBoss.x += Math.cos(angle) * currentBoss.speed; currentBoss.y += Math.sin(angle) * currentBoss.speed; break;
+                case 'dash': currentBoss.x += Math.cos(angle) * currentBoss.speed * 4; currentBoss.y += Math.sin(angle) * currentBoss.speed * 4; break;
+                case 'shoot': if (Math.random() < 0.05) { bossProjectiles.push({ x: currentBoss.x, y: currentBoss.y, size: 10, dx: Math.cos(angle) * 5, dy: Math.sin(angle) * 5 }); } break;
+                case 'spawn': if (Math.random() < 0.02) { rooms[`${currentRoomCoords.x},${currentRoomCoords.y}`].enemies.push({ type: 'rusher', x: currentBoss.x, y: currentBoss.y, size: 10, speed: 3.5, health: 1, hitTimer: 0, poisoned: { active: false } }); } break;
+                case 'teleport': if (Math.random() < 0.015) { currentBoss.x = Math.random() * (canvas.width - 200) + 100; currentBoss.y = Math.random() * (canvas.height - 200) + 100; } break;
+                case 'bulletHell': if (Math.random() < 0.1) { for(let i = 0; i < 8; i++){ const spreadAngle = (now / 500) + (i * (Math.PI / 4)); bossProjectiles.push({ x: currentBoss.x, y: currentBoss.y, size: 8, dx: Math.cos(spreadAngle) * 3, dy: Math.sin(spreadAngle) * 3 }); } } break;
+            }
+        }
+        function updateEnemies(now) {
+            const currentRoom = rooms[`${currentRoomCoords.x},${currentRoomCoords.y}`];
+            if (!currentRoom) return;
+
+            for (let i = currentRoom.enemies.length - 1; i >= 0; i--) {
+                const e = currentRoom.enemies[i];
+                if (e.hitTimer > 0) e.hitTimer -= 16;
+                
+                if (e.poisoned.active) {
+                    if (now > e.poisoned.lastTick + 1000) {
+                        damageEntity(e, e.poisoned.dps);
+                        e.poisoned.lastTick = now;
+                        e.poisoned.duration -= 1000;
+                    }
+                    if (e.poisoned.duration <= 0) e.poisoned.active = false;
+                }
+
+                if (e.health <= 0) {
+                    if (e.type === 'splitter') {
+                        for (let k = 0; k < 2; k++) {
+                            currentRoom.enemies.push({ type: 'rusher', x: e.x + (k * 20 - 10), y: e.y, size: 8, speed: 4, health: 1, hitTimer: 0, poisoned: { active: false } });
+                        }
+                    } else {
+                        const shapePoints = [];
+                        const pointCount = 10;
+                        for(let j = 0; j < pointCount; j++) {
+                            const angle = (j / pointCount) * Math.PI * 2;
+                            const radius = e.size * 0.8 * (0.7 + Math.random() * 0.6);
+                            shapePoints.push({x: e.x + Math.cos(angle) * radius, y: e.y + Math.sin(angle) * radius });
+                        }
+                        currentRoom.bloodPuddles.push({ shape: shapePoints });
+                    }
+
+                    drops.push({x: e.x, y: e.y, type: 'soul', size: 8});
+                    if (Math.random() < 0.1) drops.push({x: e.x + 15, y: e.y, type: 'health', size: 10});
+                    currentRoom.enemies.splice(i, 1); score += 10; updateScoreDisplay();
+                    if (currentRoom.enemies.length === 0 && !currentRoom.cleared) currentRoom.cleared = true;
+                    continue;
+                }
+                
+                const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                if (e.type === 'shooter') {
+                    const dist = Math.hypot(player.x - e.x, player.y - e.y);
+                    if (dist > 300) { e.x += Math.cos(angle) * e.speed; e.y += Math.sin(angle) * e.speed; }
+                    if (now > e.lastShot + e.shootCooldown) {
+                        enemyProjectiles.push({ x: e.x, y: e.y, size: 8, dx: Math.cos(angle) * 4, dy: Math.sin(angle) * 4 });
+                        e.lastShot = now;
+                    }
+                } else if (e.type === 'ghost') {
+                    if (now > e.phaseTimer) {
+                        e.isPhasing = !e.isPhasing;
+                        e.phaseTimer = now + (e.isPhasing ? 2000 : 4000);
+                    }
+                    e.x += Math.cos(angle) * e.speed;
+                    e.y += Math.sin(angle) * e.speed;
+                }
+                else {
+                    e.x += Math.cos(angle) * e.speed; e.y += Math.sin(angle) * e.speed;
+                }
+            }
+        }
+        function updateCompanion(now) {
+            if (!companion) return;
+
+            const targetX = player.x - 40;
+            const targetY = player.y - 40;
+            companion.x += (targetX - companion.x) * 0.08;
+            companion.y += (targetY - companion.y) * 0.08;
+
+            const currentRoom = rooms[`${currentRoomCoords.x},${currentRoomCoords.y}`];
+            let nearestEnemy = null;
+            let minDistance = Infinity;
+            
+            const entitiesToTarget = [...(currentRoom?.enemies || [])];
+            if (currentBoss) entitiesToTarget.push(currentBoss);
+
+            for (const enemy of entitiesToTarget) {
+                if(enemy.type === 'ghost' && enemy.isPhasing) continue;
+                const distance = Math.hypot(companion.x - enemy.x, companion.y - enemy.y);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestEnemy = enemy;
+                }
+            }
+            companion.target = nearestEnemy;
+
+            if (companion.target && now - companion.lastShot > companion.shotCooldown) {
+                const angle = Math.atan2(companion.target.y - companion.y, companion.target.x - companion.x);
+                companionProjectiles.push({
+                    x: companion.x, y: companion.y,
+                    dx: Math.cos(angle) * 6, dy: Math.sin(angle) * 6,
+                    size: 5, damage: 0.3
+                });
+                companion.lastShot = now;
+            }
+        }
+        function checkDoorCollision() {
+            const currentRoom = rooms[`${currentRoomCoords.x},${currentRoomCoords.y}`]; if (!currentRoom || !currentRoom.cleared) return;
+            const { x, y } = currentRoomCoords;
+            if (player.x > canvas.width && map[y]?.[x + 1]) { enterRoom(x + 1, y); player.x = player.radius + DOOR_THICKNESS + 5; }
+            else if (player.x < 0 && map[y]?.[x - 1]) { enterRoom(x - 1, y); player.x = canvas.width - player.radius - DOOR_THICKNESS - 5; }
+            else if (player.y > canvas.height && map[y + 1]?.[x]) { enterRoom(x, y + 1); player.y = player.radius + DOOR_THICKNESS + 5; }
+            else if (player.y < 0 && map[y - 1]?.[x]) { enterRoom(x, y - 1); player.y = canvas.height - player.radius - DOOR_THICKNESS - 5; }
+        }
+        
+        resetGame();
+    </script>
+    <script src="game.js"></script>
+</body>
+</html>
